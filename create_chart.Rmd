@@ -1,0 +1,79 @@
+---
+title: "Studio logging"
+date: "`r Sys.Date()`"
+output: html_document
+params:
+  default_date: !r Sys.Date()-1
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r get_data, message=FALSE, warning=FALSE, echo=FALSE}
+library(ggplot2)
+library(dplyr)
+library(DBI)
+
+temp_date <- params$default_date
+con <- dbConnect(RSQLite::SQLite(), "microbit-logger.db")
+
+x <- dbReadTable(con, "logger")
+# x <- tbl(con, "logger")
+
+x %>% 
+  select(day,time,temperature, light) %>% 
+  filter(day == temp_date) %>% 
+  select(time, temperature, light) -> tempdata 
+  
+tempdata$time <- as.POSIXct(strptime(tempdata$time, format = "%H:%M:%S", tz = "UTC"))
+```
+
+## Temperature
+
+```{r plot_temp, width=20, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(tempdata) +
+ aes(x = time, y = temperature, group = 1) +
+ geom_step(colour = "lightgray") + 
+ geom_smooth() +
+ scale_x_datetime(date_breaks = '1 hour', date_labels = '%H') +
+ labs(x = "Time of day", y = "Temperature", title = paste("Daily temperature:", temp_date)) +
+ theme_minimal()
+```
+
+## Light
+
+```{r plot_light, width=20, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(tempdata) +
+ aes(x = time, y = light, group = 1) +
+ geom_step(colour = "lightgray") + 
+ geom_smooth() +
+ scale_x_datetime(date_breaks = '1 hour', date_labels = '%H') +
+ labs(x = "Time of day", y = "Light Level", title = paste("Daily light levels:", temp_date)) +
+ theme_minimal()
+```
+
+## Data
+
+```{r render_data, echo=FALSE, message=FALSE, warning=FALSE}
+library(gt)
+x %>% 
+  select(day,temperature, light) %>% 
+  group_by(day) %>% summarise(
+    min_temp = min(temperature),
+    mean_temp = round(mean(temperature), 1),
+    max_temp = max(temperature),
+    min_light = min(light),
+    max_light = max(light),
+    num_records = n()
+  ) %>% gt()
+
+```
+
+---
+
+Report generated on `r Sys.Date()`.
+
